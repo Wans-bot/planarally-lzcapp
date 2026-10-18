@@ -1,0 +1,17 @@
+PlanarAlly
+==========
+
+Upstream: https://github.com/Kruptein/PlanarAlly
+Version:  v2026.2 (commit 19b525793fdaf314328c65f044f56039c407bb20)
+License:  MIT (full text in LICENSE next to this file)
+
+This package repackages the upstream release image
+(kruptein/planarally:v2026.2) for LazyCat Microserver without modifying
+upstream source. The only additions are:
+
+  content/init.sh                                   first-run account and config bootstrap
+  content/lazycat-injects/pa-autologin.js           passwordless sign-in for the LazyCat gateway
+  content/lazycat-injects/lzc-file-chooser-inject.js  official LazyCat cloud-drive file picker
+
+The upstream source for the running image is the repository above at the
+tag listed here.

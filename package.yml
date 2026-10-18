@@ -1,0 +1,129 @@
+package: cloud.lazycat.app.planarally
+version: 2026.2.0-5
+name: PlanarAlly 跑团虚拟桌面
+description: 自托管的跑团虚拟桌面：战棋地图、战争迷雾、动态光照、角色视野与先攻条，同桌玩家各自用浏览器实时协作。
+author: Kruptein
+license: MIT
+homepage: https://github.com/Kruptein/PlanarAlly
+min_os_version: 1.5.0
+
+# 移动端不提供支持：跑团桌面是桌面布局，窄屏下底部工具栏横向溢出（实测 390x844 视口
+# scrollWidth 476 > clientWidth 390），画墙、调光照这类精细操作也需要鼠标。
+# 因此不声明移动端支持，也不提交移动端截图，简介与 usage 里写明请用桌面端。
+unsupported_platforms:
+  - ios
+  - android
+
+locales:
+  zh-CN:
+    name: PlanarAlly 跑团虚拟桌面
+    description: 自托管的跑团虚拟桌面：战棋地图、战争迷雾、动态光照、角色视野与先攻条，同桌玩家各自用浏览器实时协作。
+    usage: |
+      PlanarAlly 是一套自托管的跑团虚拟桌面：上传自己的地图，在无限画布上摆战棋、
+      画墙与门来遮挡视线、开战争迷雾与动态光照，再用先攻条推进战斗。同桌玩家各开
+      一个浏览器打开同一个应用，就能加入同一场战役，改动实时同步。
+
+      首次使用：
+
+      1. 打开应用即为简体中文界面并已自动登录（不需要手输账号密码），直接进入战役列表。
+      2. 点「+」新建一场战役并进入，看到的是场景编辑界面。
+      3. 左侧工具栏自上而下是选择、画笔、墙与门（决定视野遮挡）、光照、战棋、先攻条；
+         右侧是图层与玩家管理。
+      4. 上传地图或棋子素材：打开资产管理器点上传，选择文件时会弹出统一窗口，
+         可切换「网盘文件 / 本地文件」两种来源。
+      5. 邀请同桌：在战役的玩家管理里分配 DM 与玩家角色，对方用自己的微服账号打开
+         同一个应用即可加入同一场战役。
+
+      审核账号（应用自身登录，与微服账号无关；正常使用不需要手输）：
+
+      - 账号：admin
+      - 密码：PaLzc-7Rq2Xw9m
+
+      账号切换：在应用内登出后会停在登录页，本标签页不会再自动登录，可以直接注册或
+      登录其他账号；新开标签页或重新打开应用会恢复自动登录。其他用户也可以在登录页
+      自行注册，地图素材与战役按账号隔离。
+
+      界面语言：
+
+      - 登录页、跑团桌面（战棋、光照、先攻、聊天、角色与素材面板）以及各类提示是简体
+        中文，默认语言已经设为中文。
+      - 战役列表页、新建/导入战役弹窗、资产页与管理页的标题按钮是上游写死的英文，
+        上游还没有给这部分接多语言，后续版本会跟随上游更新。
+      - 想切换语言：跑团桌面里「DM 选项 / 客户端选项」里有语言选择；登录页右下角也有
+        语言图标，可切换简体中文、繁體中文、English 等。
+
+      数据与限制：
+
+      - 战役、场景、地图素材与账号都保存在微服的应用数据目录中，重启与升级不丢，
+        升级不改变应用访问地址。
+      - 战役可以在设置里导出为 zip 文件，保存时弹出统一窗口，可直接写入懒猫网盘；
+        导入同样支持从网盘或本机选择文件。
+      - 从网盘右键打开文件暂不支持，导入素材请走应用内的资产上传入口，该入口同样
+        支持网盘来源。
+      - 邮件功能未启用，「忘记密码」不可用；需要重置密码时请联系管理员。
+      - 本包不提供应用内更新，首装不会再弹上游的版本变更提示；升级由商店侧完成。
+      - 桌面端与移动端浏览器都可用；画墙、调光照这类精细操作建议在桌面端进行。
+      - 本应用按上游 MIT 许可分发，完整许可证随包附上；源码地址
+        https://github.com/Kruptein/PlanarAlly
+
+  en-US:
+    name: PlanarAlly Virtual Tabletop
+    description: "A self-hosted virtual tabletop for tabletop RPGs: battle maps, fog of war, dynamic lighting, player vision and an initiative tracker, with real-time multiplayer."
+    usage: |
+      PlanarAlly is a self-hosted virtual tabletop. Upload your own maps, place tokens on
+      an infinite canvas, draw walls and doors that block line of sight, enable fog of war
+      and dynamic lighting, and run combat with the initiative tracker. Everyone at the
+      table opens the same app in a browser and joins the same campaign; changes sync live.
+
+      Getting started:
+
+      1. The app opens with a Chinese interface and signs you in automatically (no account
+         or password needed), landing on the campaign list.
+      2. Click "+" to create a campaign and open it; you will see the scene editor.
+      3. The toolbar on the left holds select, draw, walls and doors (which define vision
+         blockers), light tools, tokens and the initiative tracker. The right side has the
+         layer panel and player management.
+      4. To upload maps or token art, open the asset manager and start an upload. A unified
+         dialog lets you pick from the LazyCat cloud drive or local files.
+      5. To invite players, assign DM and player roles in the campaign's player management.
+         They open the same app with their own microserver account and join the campaign.
+
+      Review account (application-level login, unrelated to your microserver account; you
+      do not need it in normal use):
+
+      - account: admin
+      - password: PaLzc-7Rq2Xw9m
+
+      Switching accounts: after logging out in the app you stay on the login page and this
+      tab will not sign in automatically again, so you can register or log in as someone
+      else. Opening a new tab restores the automatic sign-in. Other users can register on
+      the login page; maps, assets and campaigns are kept per account.
+
+      Interface language:
+
+      - The login page, the tabletop itself (tokens, lights, initiative, chat, character and
+        asset panels) and the dialogs are Simplified Chinese, and Chinese is the default.
+      - The campaign list, the create/import campaign dialog, the assets page and the admin
+        page use English titles and buttons hardcoded upstream; upstream has not wired i18n
+        into that part yet and it will follow upstream releases.
+      - To switch language, use the language selector in the tabletop's DM/client settings,
+        or the language icon on the login page (Simplified Chinese, Traditional Chinese,
+        English, German, and more).
+
+      Data and limits:
+
+      - Campaigns, scenes, map assets and accounts live in the app data directory on your
+        microserver; restarts and upgrades keep them and the URL stays unchanged.
+      - Campaigns can be exported as a zip file from the campaign settings. A unified
+        dialog lets you save straight into a LazyCat cloud drive folder, and import accepts
+        both cloud drive and local files.
+      - Opening a file from the cloud drive context menu is not supported; import assets
+        through the asset manager upload, which also accepts cloud drive files.
+      - Email is not enabled, so "forgot password" is unavailable; ask an administrator to
+        reset the password instead.
+      - Desktop and mobile browsers both work; precise work such as drawing walls or
+        tuning lights is best done on a desktop.
+      - This package does not update itself and the upstream release-notes popup is
+        suppressed, so a fresh install opens straight into the app.
+      - Distributed under the upstream MIT license, bundled with this package; source at
+        https://github.com/Kruptein/PlanarAlly

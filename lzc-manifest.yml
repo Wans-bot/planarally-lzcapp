@@ -1,0 +1,251 @@
+# PlanarAlly 跑团虚拟桌面 · 懒猫微服运行清单（LPK V2）
+#
+# 目标环境：lzcos 1.6.2 / lzc-cli 2.0.9（规范校准留痕见 实测记录/specsync/）
+# 上游：Kruptein/PlanarAlly v2026.2 = commit 19b525793fdaf314328c65f044f56039c407bb20（MIT）
+#       发行镜像 kruptein/planarally:v2026.2 复制到懒猫源
+#
+# 设计要点：
+# 1. 单容器：上游镜像监听 8000，前端由 aiohttp 直接托管（同一容器内）。
+# 2. 持久化：镜像声明 VOLUME /planarally/data、/planarally/static/assets、
+#    /planarally/static/mods，三个都必须 bind，否则 docker 挂匿名卷盖住持久目录
+#    （平台坑「数据持久化」一节）。镜像自带非 root 用户 9000，但 /lzcapp/var 的挂载点
+#    由平台以 root 建成，非 root 进程写不进去；本机 lzcos 1.6.2 的 services.run_as
+#    在挂载点上报 EOVERFLOW（平台缺陷，tracearr / zammad 同款结论），因此按先例
+#    显式以 root 运行。
+# 3. 免密：browser 注入 pa-autologin.js 调同源 POST /api/login 换会话 Cookie，
+#    再做一次 location.reload()。PlanarAlly 的登录态是 aiohttp 加密会话 Cookie
+#    （密钥存在数据库），不是 localStorage，因此必须让服务端发 Cookie，
+#    不能只写前端状态。账号由 planarally-init 容器在安装时幂等创建。
+# 4. 账号切换：注入脚本监听浏览器对 /api/logout 的调用，用户主动登出后本标签页
+#    停止自动登录，可直接注册或登录其他账号。
+# 5. 网盘：官方文件桥（request）+ 官方文件选择器（browser），覆盖资产上传
+#    （<input type=file>）与战役导出下载（<a download> 指向 blob:）。
+# 6. WebSocket：PlanarAlly 用 socket.io 做实时同步，上游声明 fix_websocket_header
+#    修正 Sec-Websocket-* 头大小写。
+application:
+  subdomain: planarally
+  upstreams:
+    - location: /
+      backend: http://planarally.cloud.lazycat.app.planarally.lzcapp:8000
+      disable_trim_location: true
+      fix_websocket_header: true
+  health_check:
+    test_url: http://planarally.cloud.lazycat.app.planarally.lzcapp:8000/api/version
+    start_period: 180s
+    timeout: 10s
+  injects:
+    # ── 会话引导（request 阶段，主路径）─────────────────────────────────────
+    # 上游前端 bundle 是 <script type="module">，比平台注入的 defer 脚本先执行；
+    # 等浏览器注入再登录时，应用已经带着「未登录」状态跑了一遍，会先打出 /api/auth 401
+    # 并渲染英文登录页。这里在文档请求进入 upstream 前先看有没有 PlanarAlly 会话 Cookie
+    # （AIOSESSION，HttpOnly），没有就返回一个中文引导页，由它登录后再跳回 /。
+    # 用户主动登出后浏览器注入会写 pa_skip_autologin Cookie，本注入随即不再介入，
+    # 保留注册或登录其他账号的路径。
+    - id: pa-session-bootstrap
+      'on': request
+      auth_required: false
+      when:
+        - /
+      do:
+        - src: file:///lzcapp/pkg/content/lazycat-injects/pa-session-bootstrap.js
+          params:
+            user: admin
+            password: PaLzc-7Rq2Xw9m
+    # ── 抑制上游版本变更弹窗（response 阶段）────────────────────────────────
+    # 本包不提供应用内更新，官方对无法应用内更新的应用要求去掉更新提示；
+    # 上游首次进入战役时会弹一次 changelog（标题中文、正文英文），这里把接口置空。
+    - id: pa-suppress-changelog
+      'on': response
+      auth_required: false
+      when:
+        - /api/changelog
+      do: |
+        ctx.body.set(JSON.stringify({ changelog: "" }), { content_type: "application/json" });
+    # ── 免密登录兜底与账号切换（browser 阶段）────────────────────────────────
+    # 主路径已由 pa-session-bootstrap 处理，这里负责深链、默认中文与登出后的恢复按钮。
+    - id: pa-autologin
+      'on': browser
+      auth_required: false
+      when:
+        - /*
+      do:
+        - src: file:///lzcapp/pkg/content/lazycat-injects/pa-autologin.js
+          params:
+            user: admin
+            password: PaLzc-7Rq2Xw9m
+    # 兜底 1：自动登录失败时落在登录页，用内置脚本把 #username / #password 填好（只填不提交）。
+    - id: pa-login-autofill
+      'on': browser
+      auth_required: false
+      when:
+        - /*
+      do:
+        - src: builtin://simple-inject-password
+          params:
+            user: admin
+            password: PaLzc-7Rq2Xw9m
+            userSelector: '#username'
+            passwordSelector: '#password'
+            submitSelector: 'button[type="submit"]'
+            autoSubmit: false
+            retryCount: 20
+            observerTimeoutMs: 20000
+    # 兜底 2：Vue SPA 里「填好但不提交」是常见坑。等两个输入框都有值后点一次提交按钮；
+    # 1 秒后若还停在登录页再 requestSubmit 一次。最多两次，不循环。
+    - id: pa-login-submit
+      'on': browser
+      auth_required: false
+      when:
+        - /*
+      do:
+        - src: |
+            (function () {
+              if (window.__paAutoSubmit) return;
+              window.__paAutoSubmit = true;
+              var attempts = 0;
+              var ticks = 0;
+              function submitOnce() {
+                var user = document.querySelector("#username");
+                var password = document.querySelector("#password");
+                if (!user || !password || !user.value || !password.value) return;
+                var form = user.closest("form") || document.querySelector("form");
+                var button =
+                  (form && form.querySelector('button[type="submit"], input[type="submit"]')) ||
+                  document.querySelector('button[type="submit"]');
+                attempts++;
+                try {
+                  if (attempts === 1 && button) {
+                    button.click();
+                  } else if (form && form.requestSubmit) {
+                    form.requestSubmit();
+                  } else if (button) {
+                    button.click();
+                  }
+                } catch (e) {}
+              }
+              var timer = setInterval(function () {
+                ticks++;
+                submitOnce();
+                if (attempts >= 2 || ticks > 60) clearInterval(timer);
+              }, 500);
+            })();
+    # ── 网盘文件桥（request 阶段）────────────────────────────────────────────
+    # 官方《网盘文件选择器/自动拦截》要求 request 与 browser 两侧成对配置：
+    # /__lazycat_file_bridge/* 转发到 file.<微服域名>，让「保存到网盘」真正落盘，
+    # 并让共享目录按 owner 正确切换文件根。代码取自官方专题。
+    - id: lazycat-file-bridge
+      'on': request
+      auth_required: false
+      when:
+        - /__lazycat_file_bridge/*
+      do:
+        - src: |
+            const bridgePrefix = "/__lazycat_file_bridge";
+            const requestHost = String(ctx.request.host || "")
+              .split(":")[0]
+              .toLowerCase();
+            const firstDot = requestHost.indexOf(".");
+            const method = String(ctx.request.method || "").toUpperCase();
+
+            if (
+              firstDot <= 0 ||
+              !requestHost.endsWith(".heiyu.space") ||
+              !["GET", "HEAD", "PUT"].includes(method)
+            ) {
+              ctx.response.send(
+                ["GET", "HEAD", "PUT"].includes(method) ? 400 : 405,
+                "Invalid LazyCat file bridge request",
+              );
+              return;
+            }
+
+            const boxDomain = requestHost.slice(firstDot + 1);
+            const fileOrigin = "https://file." + boxDomain;
+            const targetPath =
+              "/files/home" + ctx.request.path.slice(bridgePrefix.length);
+
+            ctx.headers.del("Origin");
+            ctx.headers.del("Referer");
+            ctx.proxy.to(fileOrigin, {
+              path: targetPath,
+              query: ctx.request.raw_query,
+              use_target_host: true,
+              timeout_ms: 120000,
+              on_fail: "error",
+            });
+    # ── 网盘文件选择器（browser 阶段）────────────────────────────────────────
+    # 覆盖 <input type=file>（资产/地图上传）与 <a download>（战役导出 zip）。
+    - id: open-save-chooser
+      'on': browser
+      auth_required: false
+      when:
+        - /*
+      do:
+        - src: >-
+            file:///lzcapp/pkg/content/lazycat-injects/lzc-file-chooser-inject.js
+          params:
+            diskRoot: /_lzc/files/home
+            fileBridgeRoot: /__lazycat_file_bridge
+            fallbackMime: application/octet-stream
+            locale: auto
+            hooks:
+              fileSystemAccess: true
+              fileInput: true
+              downloadAnchor: true
+            text:
+              zh-CN:
+                openTitle: 打开
+                saveTitle: 保存
+                cloudTab: 网盘文件
+                localTab: 本地文件
+                openLazyCat: 从懒猫打开
+                saveLazyCat: 保存至懒猫
+                cancel: 取消
+              en-US:
+                openTitle: Open
+                saveTitle: Save
+                cloudTab: Cloud files
+                localTab: Local files
+                openLazyCat: Open from LazyCat
+                saveLazyCat: Save to LazyCat
+                cancel: Cancel
+services:
+  # ── 主服务 ─────────────────────────────────────────────────────────────────
+  planarally:
+    image: registry.lazycat.cloud/wans/kruptein/planarally:6f5ecf3c1c4ac5d4
+    # 见文件头第 2 条：镜像默认 UID 9000 写不进平台以 root 建成的 /lzcapp/var 挂载点。
+    user: '0:0'
+    environment:
+      - TZ=Asia/Shanghai
+    binds:
+      - /lzcapp/var/planarally/data:/planarally/data
+      - /lzcapp/var/planarally/assets:/planarally/static/assets
+      - /lzcapp/var/planarally/mods:/planarally/static/mods
+    healthcheck:
+      test: [CMD-SHELL, "curl -fsS -o /dev/null http://127.0.0.1:8000/api/version || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 180s
+  # ── 首次初始化（幂等）：建管理员账号 + 写基础 config.toml ──────────────────
+  # 用应用自己的镜像（自带 curl 与 Python），只发 HTTP 请求，不直接改数据库。
+  # 主服务启动已就绪后才动手（脚本里轮询 /api/version），写完 config.toml 由上游的
+  # 文件监听热加载，不需要重启容器。脚本完成后常驻 sleep，healthcheck 恒为 true。
+  planarally-init:
+    image: registry.lazycat.cloud/wans/kruptein/planarally:6f5ecf3c1c4ac5d4
+    entrypoint: /bin/sh
+    command: /lzcapp/pkg/content/init.sh
+    user: '0:0'
+    environment:
+      - TZ=Asia/Shanghai
+      - LZC_ADMIN_USER=admin
+      - LZC_ADMIN_PASSWORD=PaLzc-7Rq2Xw9m
+      - LZC_CLIENT_URL=https://{{ .S.AppDomain }}
+    binds:
+      - /lzcapp/var/planarally/data:/planarally/data
+    healthcheck:
+      test: [CMD-SHELL, "true"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
